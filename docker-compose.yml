@@ -1,0 +1,44 @@
+services:
+  db:
+    image: mysql:8.3
+    environment:
+      MYSQL_DATABASE: wms
+      MYSQL_USER: wms
+      MYSQL_PASSWORD: wms
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: [ "CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent || mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent" ]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 30s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql+pymysql://wms:wms@db:3306/wms
+      FLASK_ENV: development
+    ports:
+      - "8000:8000"
+    command: sh -c "python -m app.prestart && gunicorn --reload -w 2 -b 0.0.0.0:8000 app.api.app:app"
+    volumes:
+      - .:/app
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    depends_on:
+      - db
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: wms
+      PMA_PASSWORD: wms
